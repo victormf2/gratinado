@@ -6,8 +6,36 @@ namespace Gratinado.Compiler
   {
     List<ISyntaxNode> Children { get; }
   }
-  public interface IValueExpression : ISyntaxNode {}
-  public interface IOperator : ISyntaxNode {}
+  public interface IValueExpression : ISyntaxNode 
+  {
+    Prescedences Prescedence { get; }
+  }
+  public enum Prescedences
+  {
+    Literals = 0,
+    AssignmentAndLambdaDeclarations,
+    ConditionalTernaryOperator,
+    NullCoalescingOperator,
+    ConditionalOR,
+    ConditionalAND,
+    BitwiseOR,
+    BitwiseXOR,
+    BitwiseAND,
+    EqualityComparison,
+    RelationalAndCasting, // < > <= etc
+    BitShift,
+    Additive,
+    Multiplicative,
+    SwitchExpressions,
+    Unary,
+    Primary,
+    Declaration,
+    Block,
+    Parenthesis,
+  }
+  public interface IOperator : ISyntaxNode {
+    Prescedences Prescedence { get; }
+  }
   public abstract class SyntaxToken : ISyntaxNode
   {
     public int Position { get; }
@@ -92,7 +120,16 @@ namespace Gratinado.Compiler
     }
   }
 
-  public class NumberToken : SyntaxToken, IValueExpression
+  public abstract class LiteralExpression : SyntaxToken, IValueExpression
+  {
+    protected LiteralExpression(int position, string text) : base(position, text)
+    {
+    }
+
+    public Prescedences Prescedence => Prescedences.Literals;
+  }
+
+  public class NumberToken : LiteralExpression
   {
     public NumberToken(int position, string text) : base(position, text)
     {
@@ -103,30 +140,38 @@ namespace Gratinado.Compiler
     public PlusSign(int position) : base(position, "+")
     {
     }
+
+    public Prescedences Prescedence => Prescedences.Additive;
   }
   public class MinusSign : SyntaxToken, IOperator
   {
     public MinusSign(int position) : base(position, "-")
     {
     }
+
+    public Prescedences Prescedence => Prescedences.Additive;
   }
   public class TimesSign : SyntaxToken, IOperator
   {
     public TimesSign(int position) : base(position, "*")
     {
     }
+
+    public Prescedences Prescedence => Prescedences.Multiplicative;
   }
   public class DivisorSign : SyntaxToken, IOperator
   {
     public DivisorSign(int position) : base(position, "/")
     {
     }
+    public Prescedences Prescedence => Prescedences.Multiplicative;
   }
   public class SafeDivisorSign : SyntaxToken, IOperator
   {
     public SafeDivisorSign(int position) : base(position, "?/")
     {
     }
+    public Prescedences Prescedence => Prescedences.Multiplicative;
   }
 
   public class QuestionMark : SyntaxToken

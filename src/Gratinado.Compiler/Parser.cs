@@ -6,11 +6,14 @@ namespace Gratinado.Compiler
 
     public ISyntaxNode Expression { get; }
 
-    public InvalidExpression(ISyntaxNode expression) {
+    public InvalidExpression(ISyntaxNode expression)
+    {
       Expression = expression;
       Children = new List<ISyntaxNode> { Expression };
     }
     public List<ISyntaxNode> Children { get; }
+
+    public Prescedences Prescedence => Prescedences.Literals;
 
     public override string ToString()
     {
@@ -24,7 +27,8 @@ namespace Gratinado.Compiler
 
     public ISyntaxNode Expression { get; }
 
-    public InvalidCloseParenthesis(ISyntaxNode expression) {
+    public InvalidCloseParenthesis(ISyntaxNode expression)
+    {
       Expression = expression;
       Children = new List<ISyntaxNode> { Expression };
     }
@@ -47,6 +51,8 @@ namespace Gratinado.Compiler
     }
     public List<ISyntaxNode> Children { get; }
 
+    public Prescedences Prescedence => Prescedences.Literals;
+
     public override string ToString()
     {
       return Expression.ToString() ?? "";
@@ -68,20 +74,26 @@ namespace Gratinado.Compiler
     }
     public List<ISyntaxNode> Children { get; }
 
+    public Prescedences Prescedence => Operator.Prescedence;
+
     public override string ToString()
     {
-      return $"{Left} {Operator} {Right}";
+      return $"({Left} {Operator} {Right})";
     }
   }
 
   public class EmptyValueExpression : IValueExpression
   {
     public List<ISyntaxNode> Children { get; } = new();
+
+    public Prescedences Prescedence => Prescedences.Literals;
   }
 
   public class EmptyOperator : IOperator
   {
     public List<ISyntaxNode> Children { get; } = new();
+
+    public Prescedences Prescedence => Prescedences.Literals;
   }
 
   public class ParenthesisExpression : IValueExpression
@@ -98,6 +110,8 @@ namespace Gratinado.Compiler
     }
     public List<ISyntaxNode> Children { get; }
 
+    public Prescedences Prescedence => Prescedences.Parenthesis;
+
     public override string ToString()
     {
       return $"{OpenParenthesis}{Expression}{CloseParenthesis}";
@@ -113,14 +127,17 @@ namespace Gratinado.Compiler
 
     public BlockExpression(int indentLevel, OpenBlock openBlock, List<IValueExpression> expressions, ICloseBlock closeBlock)
     {
-      _indent = string.Concat(Enumerable.Repeat("  ", indentLevel));;
+      _indent = string.Concat(Enumerable.Repeat("  ", indentLevel)); ;
       OpenBlock = openBlock;
       Expressions = expressions;
       CloseBlock = closeBlock;
       Children = new List<ISyntaxNode> { OpenBlock }.Concat(Expressions).Append(CloseBlock).ToList();
     }
-    
+
     public List<ISyntaxNode> Children { get; }
+
+    public Prescedences Prescedence => Prescedences.Block;
+
     public override string ToString()
     {
       return $"{OpenBlock}\n  {_indent}{string.Join("\n  " + _indent, Expressions)}\n{_indent}{CloseBlock}";
@@ -130,13 +147,13 @@ namespace Gratinado.Compiler
   public class InvalidCloseBlock : ICloseBlock
   {
     public ISyntaxNode Expression { get; }
-    
+
     public InvalidCloseBlock(ISyntaxNode expression)
     {
       Expression = expression;
       Children = new List<ISyntaxNode> { Expression };
     }
-    
+
     public List<ISyntaxNode> Children { get; }
 
     public override string ToString()
@@ -162,11 +179,15 @@ namespace Gratinado.Compiler
     public void Parse()
     {
       var currentExpression = ParseExpression();
-      while (currentExpression is not EOF) {
+      while (currentExpression is not EOF)
+      {
 
-        if (currentExpression is IValueExpression valueExpression) {
+        if (currentExpression is IValueExpression valueExpression)
+        {
           Expressions.Add(valueExpression);
-        } else {
+        }
+        else
+        {
           Errors.Add(
             new ExpectedExpressionError(currentExpression)
           );
@@ -180,40 +201,54 @@ namespace Gratinado.Compiler
 
 
 
-    private ISyntaxNode ParseExpression(int indentLevel = 0) {
+    private ISyntaxNode ParseExpression(int indentLevel = 0)
+    {
       var currentParsedToken = ReadNextToken();
-      if (currentParsedToken is EOF) {
+      if (currentParsedToken is EOF)
+      {
         return currentParsedToken;
       }
 
       IValueExpression? accumulatedExpression = null;
       IOperator? @operator = null;
 
-      while (true) {
+      while (true)
+      {
 
-        if (currentParsedToken is OpenParenthesis openParenthesis) {
-          accumulatedExpression = ParseOperatorExpression(
+        if (currentParsedToken is OpenParenthesis openParenthesis)
+        {
+          accumulatedExpression = ApplyPrescedence(
             left: accumulatedExpression,
-            right: ParseParenthesisExpression(openParenthesis),
-            @operator: @operator
+            @operator: @operator,
+            right: ParseParenthesisExpression(openParenthesis)
           );
-        } else if (currentParsedToken is CloseParenthesis) {
+        }
+        else if (currentParsedToken is CloseParenthesis)
+        {
           return currentParsedToken;
-        } else if (currentParsedToken is OpenBlock openBlock) {
-          accumulatedExpression = ParseOperatorExpression(
-            left: accumulatedExpression,
-            right: ParseBlockExpression(indentLevel, openBlock),
-            @operator: @operator
+        }
+        else if (currentParsedToken is OpenBlock openBlock)
+        {
+          accumulatedExpression = ApplyPrescedence(
+            left: accumulatedExpression, 
+            @operator: @operator, 
+            right: ParseBlockExpression(indentLevel, openBlock)
           );
-        } else if (currentParsedToken is CloseBlock) { 
+        }
+        else if (currentParsedToken is CloseBlock)
+        {
           return currentParsedToken;
-        } else if (currentParsedToken is IValueExpression valueExpression) {
-          accumulatedExpression = ParseOperatorExpression(
+        }
+        else if (currentParsedToken is IValueExpression valueExpression)
+        {
+          accumulatedExpression = ApplyPrescedence(
             left: accumulatedExpression,
-            @operator,
+            @operator: @operator,
             right: valueExpression
           );
-        } else {
+        }
+        else
+        {
           Errors.Add(
             new InvalidTokenError(
               token: currentParsedToken
@@ -224,7 +259,8 @@ namespace Gratinado.Compiler
 
         var nextParsedToken = ReadNextToken();
 
-        if (nextParsedToken is not IOperator nextParsedOperator) {
+        if (nextParsedToken is not IOperator nextParsedOperator)
+        {
           _position -= 1;
           return accumulatedExpression;
         }
@@ -232,46 +268,95 @@ namespace Gratinado.Compiler
         currentParsedToken = ReadNextToken();
       }
     }
-    private SyntaxToken ReadNextToken() {
+    private SyntaxToken ReadNextToken()
+    {
       var nextToken = _tokens[_position];
       _position += 1;
       return nextToken;
+    }
+
+    private IValueExpression ApplyPrescedence(IValueExpression? left, IOperator? @operator, IValueExpression right)
+    {
+      if (@operator is not null && left is BinaryOperator binaryOperator)
+      {
+        if (@operator.Prescedence > left.Prescedence)
+        {
+          var expressionWithInvertedPrescedence = new BinaryOperator(
+            binaryOperator.Left,
+            binaryOperator.Operator,
+            new BinaryOperator(
+              binaryOperator.Right,
+              @operator,
+              right
+            )
+          );
+          return expressionWithInvertedPrescedence;
+        }
+      }
+
+      var expressionWithNaturalPrescedence = ParseOperatorExpression(
+        left: left,
+        @operator,
+        right: right
+      );
+
+      return expressionWithNaturalPrescedence;
     }
 
     private IValueExpression ParseOperatorExpression(
       IValueExpression? left,
       IOperator? @operator,
       IValueExpression? right
-    ) {
+    )
+    {
 
-      if (left is null) {
-        if (@operator is null) {
-          if (right is null) {
+      if (left is null)
+      {
+        if (@operator is null)
+        {
+          if (right is null)
+          {
             Errors.Add(new ExpectOperatorAndOperandsError());
-          } else {
+          }
+          else
+          {
             return right;
           }
-        } else /* operator is not null */ {
-          if (right is null) {
+        }
+        else /* operator is not null */
+        {
+          if (right is null)
+          {
             Errors.Add(new ExcpectedOperandsError(@operator));
-          } else {
+          }
+          else
+          {
             Errors.Add(new ExpectedLeftOperandError(right, @operator));
           }
         }
-      } else /* left is not null */ {
-        if (@operator is null) {
-          if (right is null) {
+      }
+      else /* left is not null */
+      {
+        if (@operator is null)
+        {
+          if (right is null)
+          {
             return left;
-          } else {
+          }
+          else
+          {
             Errors.Add(new ExpectedOperatorError(left, right));
           }
-        } else /* operator is not null */ {
-          if (right is null) {
+        }
+        else /* operator is not null */
+        {
+          if (right is null)
+          {
             Errors.Add(new ExpectedRightOperandError(left, @operator));
           }
         }
       }
-            
+
       return new BinaryOperator(
         left: left ?? new EmptyValueExpression(),
         @operator: @operator ?? new EmptyOperator(),
@@ -282,10 +367,12 @@ namespace Gratinado.Compiler
 
     private ParenthesisExpression ParseParenthesisExpression(
       OpenParenthesis openParenthesis
-    ) {
+    )
+    {
       var expression = ParseExpression();
 
-      if (expression is CloseParenthesis closeParenthesis) {
+      if (expression is CloseParenthesis closeParenthesis)
+      {
         Errors.Add(new ExpectedExpressionError(expression));
 
         return new ParenthesisExpression(
@@ -295,7 +382,8 @@ namespace Gratinado.Compiler
         );
       }
 
-      if (expression is not IValueExpression valueExpression) {
+      if (expression is not IValueExpression valueExpression)
+      {
         Errors.Add(
           new ExpectedExpressionError(expression)
         );
@@ -308,7 +396,8 @@ namespace Gratinado.Compiler
     private ParenthesisExpression ApplyCloseParenthesis(OpenParenthesis openParenthesis, IValueExpression expression)
     {
       var nextParsedToken = ReadNextToken();
-      if (nextParsedToken is CloseParenthesis closeParenthesis) {
+      if (nextParsedToken is CloseParenthesis closeParenthesis)
+      {
         return new ParenthesisExpression(
           openParenthesis,
           expression,

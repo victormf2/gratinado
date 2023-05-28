@@ -26,6 +26,24 @@ namespace Gratinado.Tests
     }
 
     [Fact]
+    public void Parser_Test0()
+    { /*
+      1
+      (1 + 2)
+      (1 + (2 * 3))
+      ((1 + (2 * 3)) + 4)
+      ((1 + (2 * 3)) + (4 * 5))
+
+      */
+      var lexer = new Lexer("1 + 2 * 3 + 4 * 5 / 6 + 7 / 12 * 5");
+      var parser = new Parser(lexer);
+
+      parser.Parse();
+      var expressions = parser.Expressions;
+      expressions[0].ToString().Should().Be("(((1 + (2 * 3)) + ((4 * 5) / 6)) + ((7 / 12) * 5))");
+    }
+
+    [Fact]
     public void Parser_Test1()
     {
       var lexer = new Lexer("1 + 2 + 3");
@@ -39,7 +57,7 @@ namespace Gratinado.Tests
 
       expressions.Should().HaveCount(1);
 
-      expressions[0].ToString().Should().Be("1 + 2 + 3");
+      expressions[0].ToString().Should().Be("((1 + 2) + 3)");
 
       errors.Should().BeEmpty();
     }
