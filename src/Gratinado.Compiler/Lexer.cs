@@ -4,206 +4,60 @@ namespace Gratinado.Compiler
 {
   public interface ISyntaxNode
   {
+    int Start { get; }
+    int End { get; }
     List<ISyntaxNode> Children { get; }
-  }
-  public interface IValueExpression : ISyntaxNode 
-  {
-    Prescedences Prescedence { get; }
-  }
-  public enum Prescedences
-  {
-    Literals = 0,
-    AssignmentAndLambdaDeclarations,
-    ConditionalTernaryOperator,
-    NullCoalescingOperator,
-    ConditionalOR,
-    ConditionalAND,
-    BitwiseOR,
-    BitwiseXOR,
-    BitwiseAND,
-    EqualityComparison,
-    RelationalAndCasting, // < > <= etc
-    BitShift,
-    Additive,
-    Multiplicative,
-    SwitchExpressions,
-    Unary,
-    Primary,
-    Declaration,
-    Block,
-    Parenthesis,
-  }
-  public interface IOperator : ISyntaxNode {
-    Prescedences Prescedence { get; }
+    bool EqualsIgnorePosition(ISyntaxNode node);
   }
   public abstract class SyntaxToken : ISyntaxNode
   {
-    public int Position { get; }
+    public int Start { get; }
     public string Text { get; }
 
     public SyntaxToken(int position, string text)
     {
-      Position = position;
+      Start = position;
       Text = text;
+      End = Start + Text.Length;
     }
     public List<ISyntaxNode> Children => new();
+
+    public int End { get; }
 
     public override string ToString()
     {
       return Text;
     }
-  }
 
-  public class InvalidToken : SyntaxToken
-  {
-    public InvalidToken(int position, string text) : base(position, text)
+    public bool EqualsIgnorePosition(ISyntaxNode node)
     {
-    }
-  }
-
-  public class EOF : SyntaxToken
-  {
-    public EOF(int position) : base(position, "")
-    {
-    }
-  }
-
-  public class OpenParenthesis : SyntaxToken
-  {
-    public OpenParenthesis(int position) : base(position, "(")
-    {
-    }
-  }
-
-  /**
-   interface created just to overcome
-  */
-  public interface ICloseParenthesis : ISyntaxNode {}
-  public class CloseParenthesis : SyntaxToken, ICloseParenthesis
-  {
-    public CloseParenthesis(int position) : base(position, ")")
-    {
-    }
-  }
-
-  public static class CloseParenthesisExtensions
-  {
-    public static bool IsValid(this ICloseParenthesis closeParenthesisExpression, out CloseParenthesis closeParenthesis)
-    {
-      closeParenthesis = (closeParenthesisExpression as CloseParenthesis)!;
-      return closeParenthesis != null;
-    }
-  }
-
-  public class OpenBlock : SyntaxToken
-  {
-    public OpenBlock(int position) : base(position, "{")
-    {
-    }
-  }
-
-  public interface ICloseBlock : ISyntaxNode {}
-
-  public class CloseBlock : SyntaxToken, ICloseBlock
-  {
-    public CloseBlock(int position) : base(position, "}")
-    {
-    }
-  }
-
-  public static class CloseBlockExtensions
-  {
-    public static bool IsValid(this ICloseBlock closeParenthesisExpression, out CloseBlock closeBlock)
-    {
-      closeBlock = (closeParenthesisExpression as CloseBlock)!;
-      return closeBlock != null;
-    }
-  }
-
-  public abstract class LiteralExpression : SyntaxToken, IValueExpression
-  {
-    protected LiteralExpression(int position, string text) : base(position, text)
-    {
-    }
-
-    public Prescedences Prescedence => Prescedences.Literals;
-  }
-
-  public class NumberToken : LiteralExpression
-  {
-    public NumberToken(int position, string text) : base(position, text)
-    {
-    }
-  }
-  public class PlusSign : SyntaxToken, IOperator
-  {
-    public PlusSign(int position) : base(position, "+")
-    {
-    }
-
-    public Prescedences Prescedence => Prescedences.Additive;
-  }
-  public class MinusSign : SyntaxToken, IOperator
-  {
-    public MinusSign(int position) : base(position, "-")
-    {
-    }
-
-    public Prescedences Prescedence => Prescedences.Additive;
-  }
-  public class TimesSign : SyntaxToken, IOperator
-  {
-    public TimesSign(int position) : base(position, "*")
-    {
-    }
-
-    public Prescedences Prescedence => Prescedences.Multiplicative;
-  }
-  public class DivisorSign : SyntaxToken, IOperator
-  {
-    public DivisorSign(int position) : base(position, "/")
-    {
-    }
-    public Prescedences Prescedence => Prescedences.Multiplicative;
-  }
-  public class SafeDivisorSign : SyntaxToken, IOperator
-  {
-    public SafeDivisorSign(int position) : base(position, "?/")
-    {
-    }
-    public Prescedences Prescedence => Prescedences.Multiplicative;
-  }
-
-  public class QuestionMark : SyntaxToken
-  {
-    public QuestionMark(int position) : base(position, "?")
-    {
+      return node is SyntaxToken other && other.GetType() == GetType() && other.Text == Text;
     }
   }
 
   public class Lexer : IEnumerable<SyntaxToken>
   {
     public string Text { get; }
-    public List<IError> Errors { get; } = new();
+    public List<Diagnostic> Diagnostics { get; } = new();
     public Lexer(string text)
     {
       Text = text;
     }
 
     private int _position;
-    private char CurrentChar => _position >= Text.Length ? '\0' : Text[_position];
-
-    private int Next()
+    private void NextChar()
     {
-      return ++_position;
+      _position++;
     }
+
+    private char CurrentChar => _position >= Text.Length ? '\0' : Text[_position];
 
     private NumberToken ReadNumber()
     {
       int start = _position;
       while (char.IsDigit(CurrentChar))
       {
-        _ = Next();
+        _position++;
       }
       int numberTextLength = _position - start;
       string numberText = Text.Substring(start, numberTextLength);
@@ -214,88 +68,123 @@ namespace Gratinado.Compiler
     {
       while (char.IsWhiteSpace(CurrentChar))
       {
-        _ = Next();
+        NextChar();
       }
-    }
-
-    private SyntaxToken ReadSingleChar(Func<int, SyntaxToken> createToken)
-    {
-      int start = _position;
-      _ = Next();
-      return createToken(start);
     }
 
     public SyntaxToken ReadNextToken()
     {
-      if (_position >= Text.Length)
+      while (_position < Text.Length)
       {
-        return new EOF(_position);
-      }
+        SkipWhitespaces();
 
-      SkipWhitespaces();
+        if (char.IsDigit(CurrentChar))
+        {
+          return ReadNumber();
+        }
 
-      if (char.IsDigit(CurrentChar))
-      {
-        return ReadNumber();
-      }
+        if (CurrentChar == '+')
+        {
+          return new PlusToken(_position++);
+        }
 
-      if (CurrentChar == '+')
-      {
-        return ReadSingleChar((position) => new PlusSign(position));
-      }
+        if (CurrentChar == '-')
+        {
+          return new MinusToken(_position++);
+        }
 
-      if (CurrentChar == '-')
-      {
-        return ReadSingleChar((position) => new MinusSign(position));
-      }
+        if (CurrentChar == '*')
+        {
+          return new AsteriskToken(_position++);
+        }
 
-      if (CurrentChar == '*')
-      {
-        return ReadSingleChar((position) => new TimesSign(position));
-      }
-
-      if (CurrentChar == '/')
-      {
-        return ReadSingleChar((position) => new DivisorSign(position));
-      }
-
-      if (CurrentChar == '(')
-      {
-        return ReadSingleChar((position) => new OpenParenthesis(position));
-      }
-
-      if (CurrentChar == ')')
-      {
-        return ReadSingleChar((position) => new CloseParenthesis(position));
-      }
-
-      if (CurrentChar == '{')
-      {
-        return ReadSingleChar((position) => new OpenBlock(position));
-      }
-
-      if (CurrentChar == '}')
-      {
-        return ReadSingleChar((position) => new CloseBlock(position));
-      }
-
-      if (CurrentChar == '?')
-      {
-        int start = _position;
-        _ = Next();
         if (CurrentChar == '/')
         {
-          _ = Next();
-          return new SafeDivisorSign(start);
+          return new ForwardSlashToken(_position++);
         }
-        return new QuestionMark(start);
-      }
 
-      int invalidTokenPosition = _position;
-      _ = Next();
-      var invalidToken = new InvalidToken(invalidTokenPosition, Text.Substring(invalidTokenPosition, 1));
-      Errors.Add(new InvalidTokenError(invalidToken));
-      return invalidToken;
+        if (CurrentChar == '(')
+        {
+          return new OpenParenthesisToken(_position++);
+        }
+
+        if (CurrentChar == ')')
+        {
+          return new CloseParenthesisToken(_position++);
+        }
+
+        if (CurrentChar == '{')
+        {
+          return new OpenCurlyBracketsToken(_position++);
+        }
+
+        if (CurrentChar == '}')
+        {
+          return new CloseCurlyBracketsToken(_position++);
+        }
+
+        if (CurrentChar == '?')
+        {
+          int start = _position++;
+          if (CurrentChar == '/')
+          {
+            _position++;
+            return new QuestionForwardSlashToken(start);
+          }
+          return new QuestionMarkToken(start);
+        }
+
+        if (CurrentChar == '!')
+        {
+          int start = _position++;
+          if (CurrentChar == '=')
+          {
+            _position++;
+            return new ExclamationEqualsToken(start);
+          }
+          return new ExclamationMarkToken(start);
+        }
+
+        if (CurrentChar == '=')
+        {
+          int start = _position++;
+          if (CurrentChar == '=')
+          {
+            _position++;
+            return new DoubleEqualsToken(start);
+          }
+          return new EqualsToken(start);
+        }
+
+        if (CurrentChar == '<')
+        {
+          int start = _position++;
+          if (CurrentChar == '=')
+          {
+            _position++;
+            return new LowerThanOrEqualToken(start);
+          }
+          return new LowerThanToken(start);
+        }
+
+        if (CurrentChar == '>')
+        {
+          int start = _position++;
+          if (CurrentChar == '=')
+          {
+            _position++;
+            return new GreaterThanOrEqualToken(start);
+          }
+          return new GreaterThanToken(start);
+        }
+
+        int invalidTokenPosition = _position;
+        _position++;
+        var invalidToken = new InvalidToken(invalidTokenPosition, Text.Substring(invalidTokenPosition, 1));
+        Diagnostics.Add(new InvalidTokenDiagnostic(invalidToken));
+        continue;
+      }
+      return new EOFToken(_position);
     }
 
     public IEnumerator<SyntaxToken> GetEnumerator()
@@ -327,7 +216,7 @@ namespace Gratinado.Compiler
 
     public bool MoveNext()
     {
-      if (Current is EOF) {
+      if (Current is EOFToken) {
         return false;
       }
       Current = Lexer.ReadNextToken();
