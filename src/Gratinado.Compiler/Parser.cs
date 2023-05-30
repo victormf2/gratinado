@@ -21,6 +21,11 @@ namespace Gratinado.Compiler
         Expressions.Add(currentExpression);
         currentExpression = ParseExpression();
       }
+      var eofToken = Match<EOFToken>();
+      if (eofToken is null)
+      {
+        Diagnostics.Add(new EOFExpectedDiagnostic(_position + 1));
+      }
     }
 
     private SyntaxToken ReadNextToken()
@@ -33,6 +38,19 @@ namespace Gratinado.Compiler
     private SyntaxToken Peek(int offest = 0)
     {
       return _tokens[_position + offest];
+    }
+
+    private TToken? Match<TToken>()
+      where TToken : SyntaxToken
+    {
+      var nextToken = Peek();
+      if (nextToken is not TToken matchedToken)
+      {
+        return null;
+      }
+      ReadNextToken();
+      return matchedToken;
+
     }
   }
 }

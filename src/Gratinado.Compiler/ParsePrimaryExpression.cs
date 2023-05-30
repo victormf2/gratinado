@@ -3,29 +3,12 @@ public partial class Parser
 {
   private Expression? ParsePrimaryExpression()
   {
-    var startPosition = _position;
-    var nextToken = ReadNextToken();
-    if (nextToken is OpenParenthesisToken openParenthesis)
-    {
-      return ParseParenthesisExpression(openParenthesis);
-    }
-    if (nextToken is OpenCurlyBracketsToken openBlock)
-    {
-      return ParseBlockExpression(openBlock);
-    }
-    if (nextToken.IsLiteralToken())
-    {
-      return new LiteralExpression(nextToken);
-    }
-    _position = startPosition;
-    var unaryOperatorExpression = ParseUnaryOperatorExpression();
-    if (unaryOperatorExpression is not null)
-    {
-      return unaryOperatorExpression;
-    }
+    Expression? expression = null
+      ?? ParseParenthesisExpression() as Expression
+      ?? ParseBlockExpression() as Expression
+      ?? ParseUnaryOperatorExpression() as Expression
+      ?? ParseLiteralExpression();
 
-    _position = startPosition;
-
-    return null;
+    return expression;
   }
 }

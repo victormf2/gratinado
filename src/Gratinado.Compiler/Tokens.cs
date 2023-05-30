@@ -1,12 +1,5 @@
 namespace Gratinado.Compiler
 {
-  public static class TokenExtensions
-  {
-    public static bool IsLiteralToken(this SyntaxToken token)
-    {
-      return token is NumberToken or StringToken;
-    }
-  }
   public class InvalidToken : SyntaxToken
   {
     public InvalidToken(string text) : this(-1 ,text) {}
@@ -18,7 +11,7 @@ namespace Gratinado.Compiler
   public class EOFToken : SyntaxToken
   {
     public EOFToken() : this(-1) {}
-    public EOFToken(int position) : base(position, "")
+    public EOFToken(int position) : base(position, "EOF")
     {
     }
   }

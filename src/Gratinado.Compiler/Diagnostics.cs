@@ -57,4 +57,11 @@ namespace Gratinado.Compiler
     {
     }
   }
+
+  public class EOFExpectedDiagnostic : ErrorDiagnostic
+  {
+    public EOFExpectedDiagnostic(int position)
+      : base(position, position, "EOF expected")
+    {}
+  }
 }

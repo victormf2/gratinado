@@ -1,23 +1,42 @@
 namespace Gratinado.Compiler;
 public partial class Parser
 {
-  private Expression ParseParenthesisExpression(
-    OpenParenthesisToken openParenthesis
-  )
+  private ParenthesisExpression? ParseParenthesisExpression()
   {
-    var expression = ParseExpression();
 
-    var nextToken = Peek();
-    if (nextToken is CloseParenthesisToken closeParenthesisToken)
+    var openParenthesisToken = Match<OpenParenthesisToken>();
+
+    if (openParenthesisToken is null)
     {
-      ReadNextToken();
-      return new ParenthesisExpression(openParenthesis, expression, closeParenthesisToken);
+      return null;
     }
 
-    Diagnostics.Add(
-      new CloseParenthesisExpectedDiagnostic(_position + 1)
-    );
+    CloseParenthesisToken? closeParenthesisToken;
+    
+    var expression = ParseExpression();
+    if (expression is null)
+    {
+      Diagnostics.Add(new ExpressionExpectedDiagnostic(_position + 1));
+      closeParenthesisToken = Match<CloseParenthesisToken>();
+      return new ParenthesisExpression(
+        openParenthesisToken,
+        expression,
+        closeParenthesisToken
+      );
+    }
 
-    return new ParenthesisExpression(openParenthesis, expression, null);
+    closeParenthesisToken = Match<CloseParenthesisToken>();
+    if (closeParenthesisToken is null)
+    {
+      Diagnostics.Add(
+        new CloseParenthesisExpectedDiagnostic(_position + 1)
+      );
+    }
+
+    return new ParenthesisExpression(
+      openParenthesisToken,
+      expression,
+      closeParenthesisToken
+    );
   }
 }

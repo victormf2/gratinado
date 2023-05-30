@@ -3,13 +3,6 @@ public partial class Parser
 {
   private Expression? ParseExpression()
   {
-    var firstToken = Peek();
-    if (firstToken is EOFToken)
-    {
-      ReadNextToken();
-      return null;
-    }
-
     var leftOperandExpression = ParsePrimaryExpression();
     if (leftOperandExpression is null)
     {

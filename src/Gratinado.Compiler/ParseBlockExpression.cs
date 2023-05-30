@@ -1,28 +1,28 @@
 namespace Gratinado.Compiler;
 public partial class Parser
 {
-  private Expression ParseBlockExpression(OpenCurlyBracketsToken openCurlyBracketsToken)
+  private BlockExpression? ParseBlockExpression()
   {
+    var openCurlyBracketsToken = Match<OpenCurlyBracketsToken>();
+    if (openCurlyBracketsToken is null)
+    {
+      return null;
+    }
     var expressions = new List<Expression>();
     var currentExpression = ParseExpression();
-
     while (currentExpression is not null)
     {
       expressions.Add(currentExpression);
       currentExpression = ParseExpression();
     }
 
-    var nextToken = Peek();
-    if (nextToken is CloseCurlyBracketsToken closeCurlyBracketsToken)
+    var closeCurlyBracketsToken = Match<CloseCurlyBracketsToken>();
+    if (closeCurlyBracketsToken is null)
     {
-      ReadNextToken();
-      return new BlockExpression(openCurlyBracketsToken, expressions, closeCurlyBracketsToken);
+      Diagnostics.Add(
+        new CloseCurlyBracketsExpectedDiagnostic(_position + 1)
+      );
     }
-
-    Diagnostics.Add(
-      new CloseCurlyBracketsExpectedDiagnostic(_position + 1)
-    );
-
-    return new BlockExpression(openCurlyBracketsToken, expressions, null);
+    return new BlockExpression(openCurlyBracketsToken, expressions, closeCurlyBracketsToken);
   }
 }
