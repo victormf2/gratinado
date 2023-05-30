@@ -1,193 +1,137 @@
 
 namespace Gratinado.Compiler
 {
-  public interface IExpression : ISyntaxNode { }
-  public static class ExpressionExtensions
+  public abstract class Expression : ISyntaxNode
   {
-    public static bool IsValidExpression(this IExpression expression)
+    public int Start { get; private set; } = -1;
+
+    public int End { get; private set; } = -1;
+
+    private readonly List<ISyntaxNode> _children = new();
+    public IEnumerable<ISyntaxNode> Children => _children;
+
+    public bool EqualsIgnorePosition(ISyntaxNode? other)
     {
-      return expression is not InvalidExpression and not EOFExpression;
+      if (other is null || other.GetType() != GetType())
+      {
+        return false;
+      }
+      var otherChildren = other.Children.ToList();
+      var thisChildren = Children.ToList();
+
+      return other is not null
+        && other.GetType() == GetType()
+        && otherChildren.Count == thisChildren.Count
+        && otherChildren
+          .Select((child, index) => (child, index))
+          .All(i => i.child.EqualsIgnorePosition(thisChildren[i.index]));
+    }
+
+    protected void AddChildren(params ISyntaxNode?[] children)
+    {
+      _children.AddRange(
+        children.Where(child => child is not null)
+      );
+
+      if (_children.Count > 0)
+      {
+        Start = _children[0].Start;
+        End = _children[^1].End;
+      }
     }
   }
-  public class EOFExpression : IExpression
-  {
-    public int Start => Token.Start;
 
-    public int End => Token.End;
-
-    public List<ISyntaxNode> Children { get; }
-
-    public EOFToken Token { get; }
-
-    public EOFExpression(EOFToken token)
-    {
-      Token = token;
-      Children = new() { Token };
-    }
-
-    public bool EqualsIgnorePosition(ISyntaxNode node)
-    {
-      return node is EOFExpression;
-    }
-  }
-  public class InvalidExpression : IExpression {
-    public ISyntaxNode Node { get; }
-
-    public int Start => Node.Start;
-
-    public int End => Node.End;
-
-    public List<ISyntaxNode> Children { get; }
-
-    public InvalidExpression(ISyntaxNode node)
-    {
-      Node = node;
-      Children = new() { Node };
-    }
-
-    public bool EqualsIgnorePosition(ISyntaxNode node)
-    {
-      return node is InvalidExpression other && other.Node.EqualsIgnorePosition(Node);
-    }
-  }
-  public class LiteralExpression : IExpression
+  public class LiteralExpression : Expression
   {
     public ISyntaxNode Literal { get; }
-
-    public List<ISyntaxNode> Children { get; }
-
-    public int Start => Literal.Start;
-
-    public int End => Literal.End;
 
     public LiteralExpression(ISyntaxNode literal)
     {
       Literal = literal;
-      Children = new() { Literal };
+      AddChildren(Literal);
     }
 
-    public bool EqualsIgnorePosition(ISyntaxNode node)
+    public override string ToString()
     {
-      return node is LiteralExpression other && other.Literal.EqualsIgnorePosition(Literal);
+      return $"{Literal}";
     }
   }
 
-  public class BinaryOperatorExpression : IExpression
+  public class BinaryOperatorExpression : Expression
   {
-    public List<ISyntaxNode> Children { get; }
-    public IExpression LeftOperand { get; }
-    public IExpression RightOperand { get; }
-    public SyntaxToken Operator { get; }
+    public Expression LeftOperand { get; }
+    public BinaryOperator Operator { get; }
+    public Expression? RightOperand { get; }
 
-    public int Start => LeftOperand.Start;
-
-    public int End => RightOperand.End;
-
-    public BinaryOperatorExpression(IExpression leftOperand, SyntaxToken op, IExpression rightOperand)
+    public BinaryOperatorExpression(Expression leftOperand, BinaryOperator op, Expression? rightOperand)
     {
       LeftOperand = leftOperand;
+      Operator = op;
       RightOperand = rightOperand;
-      Operator = op;
-      Children = new() { LeftOperand, Operator, RightOperand };
+      AddChildren(LeftOperand, Operator, RightOperand);
     }
 
-    public bool EqualsIgnorePosition(ISyntaxNode node)
+    public override string ToString()
     {
-      return node is BinaryOperatorExpression other
-        && other.LeftOperand.EqualsIgnorePosition(LeftOperand)
-        && other.Operator.EqualsIgnorePosition(Operator)
-        && other.RightOperand.EqualsIgnorePosition(RightOperand);
+      return $"{LeftOperand} {Operator} {RightOperand}";
     }
   }
 
-  public class UnaryOperatorExpression : IExpression
+  public class UnaryOperatorExpression : Expression
   {
-    public List<ISyntaxNode> Children { get; }
-    public ISyntaxNode Operand { get; }
     public ISyntaxNode Operator { get; }
+    public Expression? Operand { get; }
 
-    public int Start => Operator.Start;
-
-    public int End => Operand.End;
-
-    public UnaryOperatorExpression(ISyntaxNode Operand, ISyntaxNode op)
+    public UnaryOperatorExpression(ISyntaxNode op, Expression? operand)
     {
-      this.Operand = Operand;
       Operator = op;
-      Children = new() { this.Operand, Operator };
+      Operand = operand;
+      AddChildren(Operator, Operand);
     }
 
-    public bool EqualsIgnorePosition(ISyntaxNode node)
+    public override string ToString()
     {
-      return node is UnaryOperatorExpression other
-        && other.Operand.EqualsIgnorePosition(Operand)
-        && other.Operator.EqualsIgnorePosition(Operator);
+      return $"{Operator}{Operand}";
     }
   }
 
-
-
-  public class ParenthesisExpression : IExpression
+  public class ParenthesisExpression : Expression
   {
-    public ISyntaxNode OpenParenthesis { get; }
-    public IExpression Expression { get; }
-    public ISyntaxNode CloseParenthesis { get; }
-    public ParenthesisExpression(ISyntaxNode openParenthesis, IExpression expression, ISyntaxNode closeParenthesis)
+    public OpenParenthesisToken OpenParenthesis { get; }
+    public Expression? Expression { get; }
+    public CloseParenthesisToken? CloseParenthesis { get; }
+    public ParenthesisExpression(OpenParenthesisToken openParenthesis, Expression? expression, CloseParenthesisToken? closeParenthesis)
     {
       OpenParenthesis = openParenthesis;
       Expression = expression;
       CloseParenthesis = closeParenthesis;
-      Children = new() { OpenParenthesis, Expression, closeParenthesis };
+      AddChildren(OpenParenthesis, Expression, CloseParenthesis);
     }
-    public List<ISyntaxNode> Children { get; }
-
-    public int Start => OpenParenthesis.Start;
-
-    public int End => CloseParenthesis.End;
-
     public override string ToString()
     {
       return $"{OpenParenthesis}{Expression}{CloseParenthesis}";
     }
-
-    public bool EqualsIgnorePosition(ISyntaxNode node)
-    {
-      return node is ParenthesisExpression other
-        && other.OpenParenthesis.EqualsIgnorePosition(OpenParenthesis)
-        && other.Expression.EqualsIgnorePosition(Expression)
-        && other.CloseParenthesis.EqualsIgnorePosition(CloseParenthesis);
-    }
   }
 
-  public class BlockExpression : IExpression
+  public class BlockExpression : Expression
   {
     public OpenCurlyBracketsToken OpenBlock { get; }
-    public List<IExpression> Expressions { get; }
-    public CloseCurlyBracketsToken CloseBlock { get; }
+    public List<Expression> Expressions { get; }
+    public CloseCurlyBracketsToken? CloseBlock { get; }
 
-    public BlockExpression(OpenCurlyBracketsToken openBlock, List<IExpression> expressions, CloseCurlyBracketsToken closeBlock)
+    public BlockExpression(OpenCurlyBracketsToken openBlock, List<Expression> expressions, CloseCurlyBracketsToken? closeBlock)
     {
       OpenBlock = openBlock;
       Expressions = expressions;
       CloseBlock = closeBlock;
-      Children = new List<ISyntaxNode> { OpenBlock }.Concat(Expressions).Append(CloseBlock).ToList();
+      AddChildren(OpenBlock);
+      AddChildren(Expressions.ToArray());
+      AddChildren(CloseBlock);
     }
 
-    public List<ISyntaxNode> Children { get; }
-
-    public int Start => OpenBlock.Start;
-
-    public int End => CloseBlock.End;
-
-    public bool EqualsIgnorePosition(ISyntaxNode node)
+    public override string ToString()
     {
-      return node is BlockExpression other
-        && other.OpenBlock.EqualsIgnorePosition(OpenBlock)
-        && other.Expressions.Count == Expressions.Count
-        && other.Expressions
-          .Select((otherExpression, index) => (otherExpression, index))
-          .All(i => i.otherExpression.EqualsIgnorePosition(Expressions[i.index]))
-        && other.CloseBlock.EqualsIgnorePosition(CloseBlock);
+      return $"{OpenBlock}{string.Join(";", Expressions)}{CloseBlock}";
     }
   }
 }

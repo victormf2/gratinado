@@ -6,12 +6,14 @@ namespace Gratinado.Compiler
   {
     int Start { get; }
     int End { get; }
-    List<ISyntaxNode> Children { get; }
-    bool EqualsIgnorePosition(ISyntaxNode node);
+    IEnumerable<ISyntaxNode> Children { get; }
+    bool EqualsIgnorePosition(ISyntaxNode? other);
   }
   public abstract class SyntaxToken : ISyntaxNode
   {
     public int Start { get; }
+
+    public int End { get; }
     public string Text { get; }
 
     public SyntaxToken(int position, string text)
@@ -20,16 +22,14 @@ namespace Gratinado.Compiler
       Text = text;
       End = Start + Text.Length;
     }
-    public List<ISyntaxNode> Children => new();
-
-    public int End { get; }
+    public IEnumerable<ISyntaxNode> Children => Enumerable.Empty<ISyntaxNode>();
 
     public override string ToString()
     {
       return Text;
     }
 
-    public bool EqualsIgnorePosition(ISyntaxNode node)
+    public bool EqualsIgnorePosition(ISyntaxNode? node)
     {
       return node is SyntaxToken other && other.GetType() == GetType() && other.Text == Text;
     }
@@ -131,7 +131,12 @@ namespace Gratinado.Compiler
             _position++;
             return new QuestionForwardSlashToken(start);
           }
-          return new QuestionMarkToken(start);
+          if (CurrentChar == '?')
+          {
+            _position++;
+            return new DoubleQuestionMarkToken(start);
+          }
+          _position--;
         }
 
         if (CurrentChar == '!')

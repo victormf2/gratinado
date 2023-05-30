@@ -6,25 +6,6 @@ namespace Gratinado.Compiler
     {
       return token is NumberToken or StringToken;
     }
-    public static bool IsBinaryOperatorToken(this SyntaxToken token)
-    {
-      return token is LowerThanOrEqualToken or
-        LowerThanToken or
-        GreaterThanOrEqualToken or
-        GreaterThanToken or
-        ExclamationEqualsToken or
-        DoubleEqualsToken or
-        EqualsToken or
-        PlusToken or
-        MinusToken or
-        AsteriskToken or
-        ForwardSlashToken or
-        QuestionForwardSlashToken;
-    }
-    public static bool IsUnaryOperatorToken(this SyntaxToken token)
-    {
-      return token is PlusToken or MinusToken or ExclamationMarkToken;
-    }
   }
   public class InvalidToken : SyntaxToken
   {
@@ -75,22 +56,6 @@ namespace Gratinado.Compiler
     }
   }
 
-  public class OpenSquareBracketsToken : SyntaxToken
-  {
-    public OpenSquareBracketsToken() : this(-1) {}
-    public OpenSquareBracketsToken(int position) : base(position, "{")
-    {
-    }
-  }
-
-
-  public class CloseSquareBracketsToken : SyntaxToken
-  {
-    public CloseSquareBracketsToken() : this(-1) {}
-    public CloseSquareBracketsToken(int position) : base(position, "}")
-    {
-    }
-  }
   public class NumberToken : SyntaxToken
   {
     public NumberToken(string text) : this(-1 ,text) {}
@@ -147,11 +112,11 @@ namespace Gratinado.Compiler
     {
     }
   }
-
-  public class QuestionMarkToken : SyntaxToken
+  public class DoubleQuestionMarkToken : SyntaxToken
   {
-    public QuestionMarkToken() : this(-1) {}
-    public QuestionMarkToken(int position) : base(position, "?")
+
+    public DoubleQuestionMarkToken() : this(-1) {}
+    public DoubleQuestionMarkToken(int position) : base(position, "??")
     {
     }
   }

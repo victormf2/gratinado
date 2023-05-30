@@ -28,8 +28,8 @@ namespace Gratinado.Compiler
 
   public class ExpressionExpectedDiagnostic : ErrorDiagnostic
   {
-    public ExpressionExpectedDiagnostic(ISyntaxNode node) : this(node.Start, node.End) {}
-    public ExpressionExpectedDiagnostic(int start, int end) : base(start, end, "Expression expected")
+    public ExpressionExpectedDiagnostic(int position)
+      : base(position, position, "Expression expected")
     {
     }
   }
@@ -44,16 +44,16 @@ namespace Gratinado.Compiler
 
   public class CloseParenthesisExpectedDiagnostic : ErrorDiagnostic
   {
-    public CloseParenthesisExpectedDiagnostic(ISyntaxNode node) : this(node.Start, node.End) {}
-    public CloseParenthesisExpectedDiagnostic(int start, int end) : base(start, end, "Expression expected")
+    public CloseParenthesisExpectedDiagnostic(int position)
+      : base(position, position, "')' expected")
     {
     }
   }
 
   public class CloseCurlyBracketsExpectedDiagnostic : ErrorDiagnostic
   {
-    public CloseCurlyBracketsExpectedDiagnostic(ISyntaxNode node) : this(node.Start, node.End) {}
-    public CloseCurlyBracketsExpectedDiagnostic(int start, int end) : base(start, end, "Expression expected")
+    public CloseCurlyBracketsExpectedDiagnostic(int position)
+      : base(position, position, "'}' expected")
     {
     }
   }
