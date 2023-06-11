@@ -2,6 +2,16 @@
 
 namespace Gratinado.Compiler
 {
+  public struct FilePosition
+  {
+    public int column;
+    public int line;
+    public FilePosition()
+    {
+      column = 0;
+      line = 1;
+    }
+  }
   public interface ISyntaxNode
   {
     int Start { get; }
@@ -15,12 +25,14 @@ namespace Gratinado.Compiler
 
     public int End { get; }
     public string Text { get; }
+    public FilePosition Position { get; }
 
-    public SyntaxToken(int position, string text)
+    public SyntaxToken(int textPosition, FilePosition filePosition, string text)
     {
-      Start = position;
+      Start = textPosition;
       Text = text;
       End = Start + Text.Length;
+      Position = filePosition;
     }
     public IEnumerable<ISyntaxNode> Children => Enumerable.Empty<ISyntaxNode>();
 
@@ -44,152 +56,129 @@ namespace Gratinado.Compiler
       Text = text;
     }
 
-    private int _position;
-    private void NextChar()
+    private int _textPosition;
+    private FilePosition _filePosition = new();
+    private void Read(int length = 1)
     {
-      _position++;
+      _filePosition.column += length;
+      _textPosition += length;
     }
 
-    private char CurrentChar => _position >= Text.Length ? '\0' : Text[_position];
+    private char Peek(int offset)
+    {
+      return _textPosition >= Text.Length ? '\0' : Text[_textPosition + offset];
+    }
+
+    private char CurrentChar => Peek(0);
 
     private NumberToken ReadNumber()
     {
-      int start = _position;
+      int startTextPosition = _textPosition;
+      FilePosition startFilePosition = _filePosition;
       while (char.IsDigit(CurrentChar))
       {
-        _position++;
+        Read();
       }
-      int numberTextLength = _position - start;
-      string numberText = Text.Substring(start, numberTextLength);
-      return new NumberToken(start, numberText);
+      int numberTextLength = _textPosition - startTextPosition;
+      string numberText = Text.Substring(startTextPosition, numberTextLength);
+      return new NumberToken(startTextPosition, startFilePosition, numberText);
+    }
+
+    private KeywordToken ReadKeyword()
+    {
+      int startTextPosition = _textPosition;
+      FilePosition startFilePosition = _filePosition;
+      while (char.IsLetterOrDigit(CurrentChar) || CurrentChar == '_')
+      {
+        Read();
+      }
+      int keywordTextLength = _textPosition - startTextPosition;
+      string keywordText = Text.Substring(startTextPosition, keywordTextLength);
+      return new KeywordToken(startTextPosition, startFilePosition, keywordText);
     }
 
     private void SkipWhitespaces()
     {
       while (char.IsWhiteSpace(CurrentChar))
       {
-        NextChar();
+        if (CurrentChar == '\n')
+        {
+          _filePosition.line++;
+          _filePosition.column = -1;
+        }
+        Read();
       }
     }
 
     public SyntaxToken ReadNextToken()
     {
-      while (_position < Text.Length)
+      SyntaxToken? nextToken;
+      do
       {
         SkipWhitespaces();
 
-        if (char.IsDigit(CurrentChar))
+        nextToken = CurrentChar switch
         {
-          return ReadNumber();
-        }
-
-        if (CurrentChar == '+')
-        {
-          return new PlusToken(_position++);
-        }
-
-        if (CurrentChar == '-')
-        {
-          return new MinusToken(_position++);
-        }
-
-        if (CurrentChar == '*')
-        {
-          return new AsteriskToken(_position++);
-        }
-
-        if (CurrentChar == '/')
-        {
-          return new ForwardSlashToken(_position++);
-        }
-
-        if (CurrentChar == '(')
-        {
-          return new OpenParenthesisToken(_position++);
-        }
-
-        if (CurrentChar == ')')
-        {
-          return new CloseParenthesisToken(_position++);
-        }
-
-        if (CurrentChar == '{')
-        {
-          return new OpenCurlyBracketsToken(_position++);
-        }
-
-        if (CurrentChar == '}')
-        {
-          return new CloseCurlyBracketsToken(_position++);
-        }
-
-        if (CurrentChar == '?')
-        {
-          int start = _position++;
-          if (CurrentChar == '/')
+          '\0' => new EOFToken(_textPosition, _filePosition),
+          '+' => new PlusToken(_textPosition, _filePosition),
+          '-' => new MinusToken(_textPosition, _filePosition),
+          '*' => new AsteriskToken(_textPosition, _filePosition),
+          '/' => new ForwardSlashToken(_textPosition, _filePosition),
+          '(' => new OpenParenthesisToken(_textPosition, _filePosition),
+          ')' => new CloseParenthesisToken(_textPosition, _filePosition),
+          '{' => new OpenCurlyBracketsToken(_textPosition, _filePosition),
+          '}' => new CloseCurlyBracketsToken(_textPosition, _filePosition),
+          ':' => new ColonToken(_textPosition, _filePosition),
+          ',' => new CommaToken(_textPosition, _filePosition),
+          '?' => Peek(1) switch
           {
-            _position++;
-            return new QuestionForwardSlashToken(start);
-          }
-          if (CurrentChar == '?')
+            '/' => new QuestionForwardSlashToken(_textPosition, _filePosition),
+            '?' => new DoubleQuestionMarkToken(_textPosition, _filePosition),
+            _ => null,
+          },
+          '!' => Peek(1) switch
           {
-            _position++;
-            return new DoubleQuestionMarkToken(start);
-          }
-          _position--;
-        }
+            '=' => new ExclamationEqualsToken(_textPosition, _filePosition),
+            _ => new ExclamationMarkToken(_textPosition, _filePosition)
+          },
+          '=' => Peek(1) switch
+          {
+            '=' => new DoubleEqualsToken(_textPosition, _filePosition),
+            _ => new EqualsToken(_textPosition, _filePosition)
+          },
+          '<' => Peek(1) switch
+          {
+            '=' => new LowerThanOrEqualToken(_textPosition, _filePosition),
+            _ => new LowerThanToken(_textPosition, _filePosition)
+          },
+          '>' => Peek(1) switch
+          {
+            '=' => new GreaterThanOrEqualToken(_textPosition, _filePosition),
+            _ => new GreaterThanToken(_textPosition, _filePosition)
+          },
+          _ when char.IsDigit(CurrentChar) => ReadNumber(),
+          _ when char.IsLetter(CurrentChar) => ReadKeyword(),
+          _ => null
+        };
 
-        if (CurrentChar == '!')
+        if (nextToken is not null)
         {
-          int start = _position++;
-          if (CurrentChar == '=')
-          {
-            _position++;
-            return new ExclamationEqualsToken(start);
-          }
-          return new ExclamationMarkToken(start);
+          Read(nextToken.Text.Length);
         }
-
-        if (CurrentChar == '=')
+        else
         {
-          int start = _position++;
-          if (CurrentChar == '=')
-          {
-            _position++;
-            return new DoubleEqualsToken(start);
-          }
-          return new EqualsToken(start);
+          var invalidToken = new InvalidToken(
+            _textPosition,
+            _filePosition,
+            Text.Substring(_textPosition, 1)
+          );
+          Diagnostics.Add(new InvalidTokenDiagnostic(invalidToken));
+          Read();
         }
-
-        if (CurrentChar == '<')
-        {
-          int start = _position++;
-          if (CurrentChar == '=')
-          {
-            _position++;
-            return new LowerThanOrEqualToken(start);
-          }
-          return new LowerThanToken(start);
-        }
-
-        if (CurrentChar == '>')
-        {
-          int start = _position++;
-          if (CurrentChar == '=')
-          {
-            _position++;
-            return new GreaterThanOrEqualToken(start);
-          }
-          return new GreaterThanToken(start);
-        }
-
-        int invalidTokenPosition = _position;
-        _position++;
-        var invalidToken = new InvalidToken(invalidTokenPosition, Text.Substring(invalidTokenPosition, 1));
-        Diagnostics.Add(new InvalidTokenDiagnostic(invalidToken));
-        continue;
       }
-      return new EOFToken(_position);
+      while(nextToken is null);
+
+      return nextToken;
     }
 
     public IEnumerator<SyntaxToken> GetEnumerator()
@@ -203,7 +192,7 @@ namespace Gratinado.Compiler
     }
   }
 
-  public class LexerEnumerator : IEnumerator<SyntaxToken>
+  public sealed class LexerEnumerator : IEnumerator<SyntaxToken>
   {
     public Lexer Lexer { get; }
     public LexerEnumerator(Lexer lexer)
@@ -211,21 +200,16 @@ namespace Gratinado.Compiler
       Lexer = lexer;
 
     }
-    public SyntaxToken Current { get; private set; }
+    public SyntaxToken Current { get; private set; } = new InvalidToken("");
 
     object IEnumerator.Current => throw new NotImplementedException();
 
-    public void Dispose()
-    {
-    }
+    public void Dispose() {}
 
     public bool MoveNext()
     {
-      if (Current is EOFToken) {
-        return false;
-      }
       Current = Lexer.ReadNextToken();
-      return true;
+      return Current is not EOFToken;
     }
 
     public void Reset()

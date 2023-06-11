@@ -43,9 +43,9 @@ namespace Gratinado.Compiler
 
   public class LiteralExpression : Expression
   {
-    public ISyntaxNode Literal { get; }
+    public SyntaxToken Literal { get; }
 
-    public LiteralExpression(ISyntaxNode literal)
+    public LiteralExpression(SyntaxToken literal)
     {
       Literal = literal;
       AddChildren(Literal);
@@ -134,4 +134,82 @@ namespace Gratinado.Compiler
       return $"{OpenBlock}{string.Join(";", Expressions)}{CloseBlock}";
     }
   }
+
+  public class FunctionDeclaration : Expression
+  {
+    public KeywordToken FunctionKeyword { get; }
+    public Identifier? NameKeyword { get; }
+    public ParametersList? ParametersList { get; }
+    public BlockExpression? Body { get; }
+
+    public FunctionDeclaration(KeywordToken functionKeyword, Identifier? nameKeyword, ParametersList? parametersList, BlockExpression? body)
+    {
+      FunctionKeyword = functionKeyword;
+      NameKeyword = nameKeyword;
+      ParametersList = parametersList;
+      Body = body;
+      AddChildren(FunctionKeyword, NameKeyword, ParametersList, Body);
+    }
+  }
+
+  public class Identifier : Expression
+  {
+    public KeywordToken KeywordToken { get; }
+    public string Name => KeywordToken.Text;
+
+    public Identifier(KeywordToken keywordToken)
+    {
+      KeywordToken = keywordToken;
+      AddChildren(KeywordToken);
+    }
+  }
+
+  public class ParametersList : Expression
+  {
+    public OpenParenthesisToken OpenParenthesis { get; }
+    public List<Parameter> Parameters { get; }
+    public CloseParenthesisToken? CloseParenthesis { get; }
+
+    public ParametersList(OpenParenthesisToken openParenthesis, List<Parameter> parameters, CloseParenthesisToken? closeParenthesis)
+    {
+      OpenParenthesis = openParenthesis;
+      Parameters = parameters;
+      CloseParenthesis = closeParenthesis;
+      AddChildren(OpenParenthesis);
+      AddChildren(Parameters.ToArray());
+      AddChildren(CloseParenthesis);
+    }
+  }
+
+  public class Parameter : Expression
+  {
+    public CommaToken? Comma { get; }
+    public Identifier Identifier { get; }
+    public ColonToken? Colon { get; }
+    public TypeExpression? Type { get; }
+
+    public Parameter(CommaToken? comma, Identifier identifier, ColonToken? colon, TypeExpression? type)
+    {
+      Comma = comma;
+      Identifier = identifier;
+      Colon = colon;
+      Type = type;
+      AddChildren(Comma, Identifier, Colon, Type);
+    }
+  }
+
+  public abstract class TypeExpression : Expression
+  {}
+
+  public class NamedType : TypeExpression
+  {
+    public Identifier Identifier { get; }
+
+    public NamedType(Identifier identifier)
+    {
+      Identifier = identifier;
+    }
+  }
+  public class UnionType : TypeExpression
+  {}
 }

@@ -52,5 +52,20 @@ namespace Gratinado.Compiler
       return matchedToken;
 
     }
+
+    private KeywordToken? MatchKeyword(string keyword)
+    {
+      var nextToken = Peek();
+      if (nextToken is not KeywordToken keywordToken)
+      {
+        return null;
+      }
+      if (keywordToken.Text != keyword)
+      {
+        return null;
+      }
+      ReadNextToken();
+      return keywordToken;
+    }
   }
 }
